@@ -27,7 +27,7 @@ con <- dbConnect(
   host = "localhost",
   port = 3306,
   user = "root",
-  password = "Jernæblevej16tv!"
+  password = "Ab663747"
 )
 
 passes <- dbReadTable(con, "matchevents_passes")
@@ -119,6 +119,7 @@ fviz_nbclust(kmp_passes, kmeans, method = "wss", k.max = 10)
 fviz_nbclust(kmp_passes, kmeans, method = "silhouette", k.max = 10)
 
 sp_kmeans <- kmeans(kmp_passes,centers = 5,nstart = 15)
+
 fviz_cluster(sp_kmeans,data = kmp_passes)
 
 sp_passes$cluster <- as.factor(sp_kmeans$cluster)
@@ -230,7 +231,7 @@ pr_passes <- allpasses %>%
   mutate(
     tidsinterval = floor(MATCHTIMESTAMP / 900) + 1
   ) %>% 
-  select(ANGLE, LENGTH, LOCATIONX,LOCATIONY,ENDLOCATIONX, ENDLOCATIONY, tidsinterval, ACCURATE)
+  select(ANGLE, LENGTH, LOCATIONX,LOCATIONY,ENDLOCATIONX, ENDLOCATIONY, tidsinterval, ACCURATE, PLAYER_WYID, EVENT_WYID)
 
 prp_passes <- pr_passes%>% 
   mutate(
@@ -241,17 +242,28 @@ prp_passes <- prp_passes[,-c(7:9)]
 data.pca <- princomp(prp_passes)
 summary(data.pca)
 data.pca$loadings[, 1:2]
-fviz_pca_var(data.pca, col.var = "black")
+#fviz_pca_var(data.pca, col.var = "black")
 
 # data er for stort dermed tager vi sample af dataer
-fviz_nbclust(allpasses_sample, kmeans, method = "wss", k.max = 10)
-fviz_nbclust(allpasses_sample, kmeans, method = "silhouette", k.max = 10)
+#fviz_nbclust(allpasses_sample, kmeans, method = "wss", k.max = 10)
+#fviz_nbclust(allpasses_sample, kmeans, method = "silhouette", k.max = 10)
 
-kmean <- kmeans(prp_passes,centers = 5,nstart = 10)
+kmean <- kmeans(prp_passes,centers = 7,nstart = 10)
 
 pr_passes$cluster <- as.factor(kmean$cluster)
 pr_passes$ACCURATE <- as.factor(pr_passes$ACCURATE)
-fviz_cluster(kmean, data = allpasses)
+
+pr_passes <- pr_passes %>% 
+  left_join(
+    players %>% select(PLAYER_WYID,ROLENAME),
+    by = "PLAYER_WYID"
+  ) 
+
+pr_passes <- pr_passes %>%
+  distinct(EVENT_WYID, .keep_all=TRUE)
+
+
+#fviz_cluster(kmean, data = allpasses)
 
 
 # check og gruppere med cluster
@@ -280,10 +292,11 @@ library(ggplot2)
 library(dplyr)
 library(DT)
 
-# saveRDS(sp_passes, file = "sp_passes.rds")
-# saveRDS(allpasses, file = "allpasses.rds")
-# saveRDS(pssts, file = "pssts.rds")
-# saveRDS(pr_passes, file = "pr_passes.rds")
+saveRDS(sp_passes, file = "sp_passes.rds")
+#saveRDS(allpasses, file = "allpasses.rds")
+saveRDS(pssts, file = "pssts.rds")
+saveRDS(pr_passes, file = "pr_passes.rds")
+
 sp_passes <- readRDS("sp_passes.rds")
 allpasses <- readRDS("allpasses.rds")
 pssts <- readRDS("pssts.rds")
@@ -294,36 +307,43 @@ pr_passes <- readRDS("pr_passes.rds")
 
 # Opret dataframe med tabellens indhold
 afleveringer_df <- data.frame(
-  Cluster = c(1, 2, 3, 4, 5),
+  Cluster = c(1, 2, 3, 4, 5, 6, 7),
   Funktion_i_spillet = c(
+    "Kombinationsspil til LB",
+    "Kombinationsspil til RB",
+    "Kombinationsspil til CB",
+    "Kombinationsspil til CB",
     "Progressivt spil",
     "Skarpe pasninger udenfor feltzone",
-    "Kombinationsspil", 
-    "Kombinationsspil",
     "Skarpe pasninger udenfor feltzone"
+    
   ),
   Banens_3_del = c(
-    "Midt (33-66)",
-    "Højt (66-100)",
     "Lavt (0-33)", 
     "Lavt (0-33)",
+    "Lavt (0-33)", 
+    "Lavt (0-33)",
+    "Midt (33-66)",
+    "Højt (66-100)",
     "Højt (66-100)"
   ),
   Kommentar = c(
-    "Fremad pasning",
-    "Tæt på mål",
     "Tidligt opspil", 
     "Tidligt opspil",
+    "Tidligt opspil", 
+    "Tidligt opspil",
+    "Fremad pasning",
+    "Tæt på mål",
     "Tæt på mål"
   )
 )
 
 
 # tæl antallet af aflevering i de 5 clustre
-antal_pas <- sp_passes %>% 
+antal_pas <- pr_passes %>% 
   group_by(cluster) %>% 
   summarise(
-    total_afleveringer = sum(antal_afleveringer)
+    total_afleveringer = n()
   )
 
 # tilføj ROLENAME
@@ -331,13 +351,14 @@ sp_passes <- sp_passes %>%
   left_join(
     players %>% select(PLAYER_WYID, ROLENAME),
     by = "PLAYER_WYID"
-  )
+  ) %>% 
+  distinct(PLAYER_WYID, .keep_all = TRUE)
 
 # Antal spillere per rolle i hvert cluster
-rolle_pr_cluster <- sp_passes %>%
+rolle_pr_cluster <- pr_passes %>%
+  na.omit() %>% 
   group_by(cluster, ROLENAME) %>%
   summarise(antal = n(), .groups = "drop")
-
 
 ########
 # OPG 4.2
@@ -345,7 +366,7 @@ rolle_pr_cluster <- sp_passes %>%
 # Alle brøndby spillere samlet for hele sæsonen
 brøndby <- sp_passes %>%
   filter(TEAMNAME == "Brøndby") %>% 
-  select(SHORTNAME, player_position, cluster, antal_afleveringer, gennemsnit_længde, gennemsnit_vinkel, accuracy, sd_af, sd_vk, sd_acc) %>% 
+  select(SHORTNAME, player_position,antal_afleveringer, gennemsnit_længde, gennemsnit_vinkel, accuracy, sd_af, sd_vk, sd_acc) %>% 
   mutate_at(vars(6:ncol(.)), ~round(., 2)) %>%
   rename(
     gns_længde = gennemsnit_længde,
@@ -608,14 +629,14 @@ server <- function(input, output, session) {
   # Cluster beskrivelse
   output$clusterinfo <- DT::renderDataTable({
     DT::datatable(afleveringer_df,  # Antager at du bruger den dataframe vi oprettede tidligere
-                  options = list(pageLength = 5, dom = 't'),  # 't' gør, at tabellen vises uden pagination
+                  options = list(pageLength = 7, dom = 't'),  # 't' gør, at tabellen vises uden pagination
                   rownames = FALSE)
   })
   
   # Datatable pssts
   output$dataTable <- DT::renderDataTable({
     DT::datatable(pssts,
-                  options = list(pageLength = 5, dom = 't'),
+                  options = list(pageLength = 7, dom = 't'),
                   rownames = FALSE)
   })
   
@@ -756,3 +777,17 @@ shinyApp(ui, server)
 
 # lav geom_bar plot til hele sæsonen om med antal afleveringer og accurcy i hver deres y akser. 
 # lav roler til antal spiller der skal vises i plot, desc fra høj til lav
+
+
+saveRDS(afleveringer_df, "afleveringer_df.rds")
+saveRDS(antal_pas, "antal_pas.rds")
+saveRDS(sp_passes, "sp_passes_with_rolename.rds")
+saveRDS(rolle_pr_cluster, "rolle_pr_cluster.rds")
+saveRDS(brøndby, "brøndby.rds")
+saveRDS(brøndby_pos, "brøndby_pos.rds")
+saveRDS(brøndby_kamp, "brøndby_kamp.rds")
+saveRDS(brøndby_kamp_med_label, "brøndby_kamp_med_label.rds")
+saveRDS(brøndby_kamp_med_pos, "brøndby_kamp_med_pos.rds")
+saveRDS(match_summary, "match_summary.rds")
+saveRDS(brøndby_matches, "brøndby_matches.rds")
+saveRDS(matchdetail_base, "matchdetail_base.rds")
