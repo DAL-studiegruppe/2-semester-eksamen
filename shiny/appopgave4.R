@@ -20,9 +20,10 @@ library(tidyr)
 # saveRDS(brøndby_matches, "brøndby_matches.rds")
 # saveRDS(matchdetail_base, "matchdetail_base.rds")
 
+
 afleveringer_df <- readRDS("afleveringer_df.rds")
 antal_pas <- readRDS("antal_pas.rds")
-sp_passes <- readRDS("sp_passes_with_rolename.rds")
+sp_passes <- readRDS("sp_passes.rds")
 rolle_pr_cluster <- readRDS("rolle_pr_cluster.rds")
 brøndby <- readRDS("brøndby.rds")
 brøndby_pos <- readRDS("brøndby_pos.rds")
@@ -39,14 +40,6 @@ matchformation <- readRDS("matchformation.rds")
 pssts <- readRDS("pssts.rds")
 antal_pas <- readRDS("antal_pas.rds")
 
-
-###########
-# OPG 4.1
-
-
-
-###################
-# SHINY
 
 ui <- dashboardPage(
   dashboardHeader(title = "BIF - Afleveringsanalyse"),
@@ -207,14 +200,14 @@ server <- function(input, output, session) {
   # Cluster beskrivelse
   output$clusterinfo <- DT::renderDataTable({
     DT::datatable(afleveringer_df,  # Antager at du bruger den dataframe vi oprettede tidligere
-                  options = list(pageLength = 5, dom = 't'),  # 't' gør, at tabellen vises uden pagination
+                  options = list(pageLength = 7, dom = 't'),  # 't' gør, at tabellen vises uden pagination
                   rownames = FALSE)
   })
   
   # Datatable pssts
   output$dataTable <- DT::renderDataTable({
     DT::datatable(pssts,
-                  options = list(pageLength = 5, dom = 't'),
+                  options = list(pageLength = 7, dom = 't'),
                   rownames = FALSE)
   })
   
@@ -298,7 +291,7 @@ server <- function(input, output, session) {
     # Bevar rækkefølgen ved at konvertere SHORTNAME til en faktor
     ordered_players$SHORTNAME <- factor(
       ordered_players$SHORTNAME,
-      levels = unique(ordered_players$SHORTNAME)
+      levels = ordered_players$SHORTNAME
     )
     
     # Skab longformat data
@@ -340,6 +333,7 @@ server <- function(input, output, session) {
       ) +
       theme(axis.text.x = element_text(angle = 45, hjust = 1))
   })
+  
   # Alle bif spillere
   output$fullDataTable <- DT::renderDataTable({
     DT::datatable(brøndby_pos,
